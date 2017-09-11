@@ -5,16 +5,20 @@ module Lib
     ( trilinear
     , resample
     , affine
+    , array_correlation
+    , fisher_transform
+    , naive_12p_registration
     ) where
 
 import Data.Array.Repa
 import qualified Data.Array.Repa as Repa
 import Data.Array.Repa.Algorithms.Matrix
 import Statistics.Sample
+import Data.Array.Repa.Repr.Unboxed
 
 type DIM3D = (Z :. Double :. Double :. Double)
 
-trilinear :: Array U DIM3 Double -> DIM3D -> Double
+trilinear :: (Unbox a, Floating a, Fractional a) => Array U DIM3 a -> DIM3D -> a
 trilinear !arr !(Z :. x :. y :. z) =
   let
     x0 = floor x
@@ -33,13 +37,13 @@ trilinear !arr !(Z :. x :. y :. z) =
       v011 = arr ! (Z :. x0 :. y1 :. y1)
       v111 = arr ! (Z :. x1 :. y1 :. y1)
       xd = if x0 /= x1 then
-        ((fromIntegral x0) - x) / (fromIntegral (x0 - x1)) else
+        ((fromIntegral x0) - (realToFrac x)) / (fromIntegral (x0 - x1)) else
         0
       yd = if y0 /= y1 then
-        ((fromIntegral y0) - y) / (fromIntegral (y0 - y1)) else
+        ((fromIntegral y0) - (realToFrac y)) / (fromIntegral (y0 - y1)) else
         0
       zd = if z0 /= z1 then
-        ((fromIntegral z0) - z) / (fromIntegral (z0 - z1)) else
+        ((fromIntegral z0) - realToFrac z) / (fromIntegral (z0 - z1)) else
         0
       in let
         c00 = v000 * (1 - xd) + v100 * xd
@@ -49,14 +53,15 @@ trilinear !arr !(Z :. x :. y :. z) =
         in let
           c0 = c00 * (1 - yd) + c10 * yd
           c1 = c01 * (1 - yd) + c11 * yd
-          in   c0 * (1 - zd) + c1 * zd
+          in  c0 * (1 - zd) + c1 * zd
 
 
 resample ::
-  Array U DIM3 Double ->
+  (Floating a, Floating b, Unbox a, Unbox b, Fractional a, Fractional b) =>
+  Array U DIM3 a ->
   (DIM3 -> DIM3D) -> --fun from coordinate system to coordinate system
-  (Array U DIM3 Double -> DIM3D -> Double) -> --interpolator
-  Array D DIM3 Double
+  (Array U DIM3 a -> DIM3D -> b) -> --interpolator
+  Array D DIM3 b
   
 resample !arr !xfm !interp =
   Repa.traverse arr id xfm_and_interp
@@ -65,21 +70,40 @@ resample !arr !xfm !interp =
 
 
 affine ::
-  DIM3 -> Array U DIM2 Double -> DIM3D
+  (Unbox a, Floating a, Fractional a, Real a) =>
+  DIM3 -> Array U DIM2 a -> DIM3D
 
 affine !(Z :. x :. y  :. z) !xfm =
   (Z :. x' :. y' :. z')
   where
-    [x',y',z',_] = (toList (mmultS xfm pnt_array))
+    [x',y',z',_] = (toList (mmultS (computeS $ Repa.map realToFrac xfm) pnt_array))
       where
         pnt_array = (fromListUnboxed
                      (Z :. (3 :: Int) :. (1 :: Int))
                      (fmap fromIntegral [x,y,z])) -- :: Array U DIM2 Double
 
 
-array_correlation :: Array U DIM3 Double -> Array U DIM3 Double -> Double
+array_correlation ::
+  (Unbox a, Real a, Fractional a) => Array U DIM3 a -> Array U DIM3 a -> a
 array_correlation !arr1 !arr2 =
-  correlation (toUnboxed (computeS (Repa.zipWith (,) arr1 arr2)))
+  realToFrac
+   (correlation
+    (toUnboxed
+     (computeS
+      (Repa.zipWith coerce_and_tuple
+         arr1 arr2))))
+  where
+     coerce_and_tuple x y = (realToFrac x, realToFrac y) 
 
-fisher_transform :: Double -> Double
-fisher_transform x = 0.5 * log ( (1 + x) / (1 - x) )
+
+fisher_transform = atanh
+
+-- Test code
+naive_12p_registration ::
+  (Unbox a, Floating a, Fractional a, Real a) =>
+  Array U DIM3 a -> [a] -> a
+
+naive_12p_registration !arr !params =
+  array_correlation arr (computeS $ resample arr (flip affine xfm) trilinear)
+  where
+    xfm = fromListUnboxed (Z :. 4 :. 4) params
