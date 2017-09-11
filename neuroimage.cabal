@@ -17,6 +17,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
   build-depends:       base >= 4.7 && < 5
+                     , repa
+                     , repa-algorithms
+                     , ad
+                     , statistics
   default-language:    Haskell2010
 
 executable neuroimage-exe
@@ -26,8 +30,6 @@ executable neuroimage-exe
   build-depends:       base
                      , neuroimage
                      , repa
-                     , repa-algorithms
-                     , ad
   default-language:    Haskell2010
 
 test-suite neuroimage-test
