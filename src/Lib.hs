@@ -10,6 +10,7 @@ module Lib
 import Data.Array.Repa
 import qualified Data.Array.Repa as Repa
 import Data.Array.Repa.Algorithms.Matrix
+import Statistics.Sample
 
 type DIM3D = (Z :. Double :. Double :. Double)
 
@@ -75,5 +76,10 @@ affine !(Z :. x :. y  :. z) !xfm =
                      (Z :. (3 :: Int) :. (1 :: Int))
                      (fmap fromIntegral [x,y,z])) -- :: Array U DIM2 Double
 
- 
 
+array_correlation :: Array U DIM3 Double -> Array U DIM3 Double -> Double
+array_correlation !arr1 !arr2 =
+  correlation (toUnboxed (computeS (Repa.zipWith (,) arr1 arr2)))
+
+fisher_transform :: Double -> Double
+fisher_transform x = 0.5 * log ( (1 + x) / (1 - x) )
