@@ -15,10 +15,11 @@ import qualified Data.Array.Repa as Repa
 import Data.Array.Repa.Algorithms.Matrix
 import Statistics.Sample
 import Data.Array.Repa.Repr.Unboxed
+import Data.Array.Repa.Repr.Vector
 
 type DIM3D = (Z :. Double :. Double :. Double)
 
-trilinear :: (Unbox a, Floating a, Fractional a) => Array U DIM3 a -> DIM3D -> a
+trilinear :: (Floating a, Fractional a) => Array V DIM3 a -> DIM3D -> a
 trilinear !arr !(Z :. x :. y :. z) =
   let
     x0 = floor x
@@ -57,10 +58,10 @@ trilinear !arr !(Z :. x :. y :. z) =
 
 
 resample ::
-  (Floating a, Floating b, Unbox a, Unbox b, Fractional a, Fractional b) =>
-  Array U DIM3 a ->
+  (Floating a, Floating b, Fractional a, Fractional b) =>
+  Array V DIM3 a ->
   (DIM3 -> DIM3D) -> --fun from coordinate system to coordinate system
-  (Array U DIM3 a -> DIM3D -> b) -> --interpolator
+  (Array V DIM3 a -> DIM3D -> b) -> --interpolator
   Array D DIM3 b
   
 resample !arr !xfm !interp =
@@ -70,8 +71,8 @@ resample !arr !xfm !interp =
 
 
 affine ::
-  (Unbox a, Floating a, Fractional a, Real a) =>
-  DIM3 -> Array U DIM2 a -> DIM3D
+  (Floating a, Fractional a, Real a) =>
+  DIM3 -> Array V DIM2 a -> DIM3D
 
 affine !(Z :. x :. y  :. z) !xfm =
   (Z :. x' :. y' :. z')
@@ -84,7 +85,7 @@ affine !(Z :. x :. y  :. z) !xfm =
 
 
 array_correlation ::
-  (Unbox a, Real a, Fractional a) => Array U DIM3 a -> Array U DIM3 a -> a
+  (Real a, Fractional a) => Array V DIM3 a -> Array V DIM3 a -> a
 array_correlation !arr1 !arr2 =
   realToFrac
    (correlation
@@ -100,10 +101,10 @@ fisher_transform = atanh
 
 -- Test code
 naive_12p_registration ::
-  (Unbox a, Floating a, Fractional a, Real a) =>
-  Array U DIM3 a -> [a] -> a
+  (Floating a, Fractional a, Real a) =>
+  Array V DIM3 a -> [a] -> a
 
 naive_12p_registration !arr !params =
   array_correlation arr (computeS $ resample arr (flip affine xfm) trilinear)
   where
-    xfm = fromListUnboxed (Z :. 4 :. 4) params
+    xfm = fromListVector (Z :. 4 :. 4) params
